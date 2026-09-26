@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
   "skill_id": "lsnu-campus-skill",
-  "collected_at": "2026-09-26T14:32:59.939590+00:00",
+  "collected_at": "2026-09-26T18:38:05.965591+00:00",
   "content_revision": "b672ebfa55a821d30c0b023ccd809fc3cc4239f69853aa84f26e2302a889d9d5",
   "feeds": [
     {
       "url": "https://jiaowc.lsnu.edu.cn/",
       "name": "教学部通知",
-      "status": "ok",
-      "error": null,
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
       "notices": [
         {
@@ -49,9 +49,9 @@
     {
       "url": "https://xuesc.lsnu.edu.cn/",
       "name": "学生资助通知",
-      "status": "ok",
-      "error": null,
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
       "notices": [
         {
@@ -75,9 +75,9 @@
     {
       "url": "http://libnew.lsnu.edu.cn/",
       "name": "图书馆通知",
-      "status": "ok",
-      "error": null,
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
       "notices": [
         {
@@ -124,14 +124,14 @@
       "discovered_from": [],
       "id": "11c47a1d30820450",
       "url": "http://libnew.lsnu.edu.cn/fw/tsjy.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "0f0603ebf593e978ee2f229c35897b731069ceff091fc198beed2dbcf7d16f96",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "校外访问-乐山师范学院沫若图书馆",
@@ -141,14 +141,14 @@
       "discovered_from": [],
       "id": "e4161823ba1de908",
       "url": "http://libnew.lsnu.edu.cn/fw/xwfw.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "f28bddb360fec4e368fafc0bb3b9ac25fb68b270aeb68e59686cecfc44b3bbcc",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "座位预约-乐山师范学院沫若图书馆",
@@ -158,14 +158,14 @@
       "discovered_from": [],
       "id": "1d408de859d3cf28",
       "url": "http://libnew.lsnu.edu.cn/fw/zwyy.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "6a0ca46784c80a824f2001d9b0634a5fef2f4fb8bc70311abfdf72e5a80d5aaf",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "图书馆招聘劳动合同工的通告-乐山师范学院沫若图书馆",
@@ -175,14 +175,14 @@
       ],
       "id": "804ef31105d39f41",
       "url": "http://libnew.lsnu.edu.cn/info/1004/4013.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "4941493d0fc4d1d7ae5a374563d6b99e1a9dbdd0ecc774fb5be65fe0ed96c7e4",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "图书馆关于招聘赵莺如等两位同志为劳动合同工的公示-乐山师范学院沫若图书馆",
@@ -192,14 +192,14 @@
       ],
       "id": "079d9b75558d6b95",
       "url": "http://libnew.lsnu.edu.cn/info/1004/4022.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "9531e17a965e1739c3f2da167e48c0b39fa88fe858da5aeb69e70ac5c82e0c74",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "关于苏稽校区鼎堂图书馆开馆安排的通知-乐山师范学院沫若图书馆",
@@ -211,14 +211,14 @@
       ],
       "id": "56cdb9e35d36de3e",
       "url": "http://libnew.lsnu.edu.cn/info/1004/4031.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": "2026-09-15",
       "content_sha256": "56346db3a1183216da30af41278274ef7913dc8f54f40dfa2ccefc77eebbe54f",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "青春告白祖国，共庆七十七华诞——乐师图书馆“心愿树”等你来种！-乐山师范学院沫若图书馆",
@@ -228,14 +228,14 @@
       ],
       "id": "de96d59d67099f09",
       "url": "http://libnew.lsnu.edu.cn/info/1004/4051.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": "2026-09-21",
       "content_sha256": "4d401f65a5fdb95019fd0b89a05acf67429048ac6460c7e2ab004297c752962b",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "书香揽月·灯谜贺盛｜双节猜谜游园会邀您参与-乐山师范学院沫若图书馆",
@@ -245,14 +245,14 @@
       ],
       "id": "fac51a73184e4a1b",
       "url": "http://libnew.lsnu.edu.cn/info/1004/4052.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": "2026-09-21",
       "content_sha256": "611071c1e6486126196c71e75eb33764b78339334f425421cdb89b4b2fc2bce5",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "图书馆2026年中秋、国庆期间开馆通知-乐山师范学院沫若图书馆",
@@ -262,14 +262,14 @@
       ],
       "id": "48b27befbbd7c10a",
       "url": "http://libnew.lsnu.edu.cn/info/1004/4061.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": "2026-09-22",
       "content_sha256": "57c78b30791808d3ad1b27e5871b5ad4638ea4175293c02d30331413237220a0",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "图书馆临时开放有声阅览室的通知-乐山师范学院沫若图书馆",
@@ -279,14 +279,14 @@
       ],
       "id": "7c76422f9323ce03",
       "url": "http://libnew.lsnu.edu.cn/info/1004/4062.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": "2026-09-22",
       "content_sha256": "9af7ca5d7b8c0e1a25f46c2dcc5388d9cdf99b328e72b63ccdc2716b789fe0a7",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "“书香颂家国 经典润初心”主题书展-乐山师范学院沫若图书馆",
@@ -296,14 +296,14 @@
       ],
       "id": "2325b30c0eac90d4",
       "url": "http://libnew.lsnu.edu.cn/info/1004/4063.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": "2026-09-22",
       "content_sha256": "a8df2dbb629ce44a83efe72c0b24d40d0fe28da07b30ccd181e489336f1d2a60",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "规章制度-乐山师范学院教学部",
@@ -313,14 +313,14 @@
       "discovered_from": [],
       "id": "b5992b6180869dd9",
       "url": "https://jiaowc.lsnu.edu.cn/gzzd.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "8d11762c233d5c09079c34663f6f6cdec3f759e1ef113ff92311996e249efb4a",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "拟出版教材公示（2026年9月）-乐山师范学院教学部",
@@ -330,14 +330,14 @@
       ],
       "id": "fd13a8d3059aa59d",
       "url": "https://jiaowc.lsnu.edu.cn/info/1015/12171.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "e3d16b78a6459e95cc2234cc6c8b19bd67aebe33d7f959e352052a9dcf691df3",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "关于2026年秋季新生教材领取安排的通知-乐山师范学院教学部",
@@ -347,14 +347,14 @@
       ],
       "id": "847bcd074bfc9a7e",
       "url": "https://jiaowc.lsnu.edu.cn/info/1015/12182.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "c688e51a865bb84546e4f6651808cb16960c5cec368df6c3b607e37c2602a898",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "关于申报四川省高等教育学会2026年人工智能赋能高校智慧教学改革专项课题的通知-乐山师范学院教学部",
@@ -364,14 +364,14 @@
       ],
       "id": "5c21cb3abf172895",
       "url": "https://jiaowc.lsnu.edu.cn/info/1015/12191.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "27d53bc08722758b4bffa847a69217b0611c890e6b74a56a9db1a34477f2d4d0",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "关于组织征集四川省高校教师教学发展研究成果的通知-乐山师范学院教学部",
@@ -381,14 +381,14 @@
       ],
       "id": "aa864d6d27383d97",
       "url": "https://jiaowc.lsnu.edu.cn/info/1015/12193.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "aad86fc34fdf3086d4093bde8bcc336c4f3345500171a58cc5bd1243947473ab",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "关于开展第三批四川省应用型品牌课程遴选和建设工作的通知-乐山师范学院教学部",
@@ -398,14 +398,14 @@
       ],
       "id": "f86ce1030ba935c4",
       "url": "https://jiaowc.lsnu.edu.cn/info/1015/12194.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "06ca616bb31f29ecaa643ef7d0f6154046270cf9650e0a9eb1da7b686797f066",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "关于做好2026-2027-1重修工作的通知-乐山师范学院教学部",
@@ -417,14 +417,14 @@
       ],
       "id": "dc6c4c1bcc44fa4d",
       "url": "https://jiaowc.lsnu.edu.cn/info/1017/12183.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "df0b5c7bd3737b0d22dd783f512c6211383a8816cde3cabb186851884d5c938f",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "关于2026年下半年（第78次）全国计算机等级考试要求的通知-乐山师范学院教学部",
@@ -434,14 +434,14 @@
       ],
       "id": "83757100cc508029",
       "url": "https://jiaowc.lsnu.edu.cn/info/1018/12174.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "860e16faae07f6bcca78a67a55c2488d37037c2e040ca946e913fdde606084e6",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "2026年下半年全国大学英语四、六级（CET-SET、CET）报名通知-乐山师范学院教学部",
@@ -453,14 +453,14 @@
       ],
       "id": "a41f02b4d39df30b",
       "url": "https://jiaowc.lsnu.edu.cn/info/1018/12201.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "5ed9e8959e1304915c685e15c449f4a95df664de6fc192904569215cd67699dc",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "学生缓考申请流程-乐山师范学院教学部",
@@ -470,14 +470,14 @@
       "discovered_from": [],
       "id": "0751f5c2a429d37e",
       "url": "https://jiaowc.lsnu.edu.cn/info/1028/2192.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "34d429ef070a7c48d885c0b6170450d5bd8904c6a4755150ecccde373be78c13",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "学生学业成绩证明办理流程-乐山师范学院教学部",
@@ -487,14 +487,14 @@
       "discovered_from": [],
       "id": "13c2afb2cdc04344",
       "url": "https://jiaowc.lsnu.edu.cn/info/1028/2194.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "02fea14e6db9db60a4de467f356fd3672558bf8f07c8d57d8f460872ea549429",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "乐山师范学院2026-2027学年校历-乐山师范学院教学部",
@@ -504,14 +504,14 @@
       "discovered_from": [],
       "id": "c1b27401d8ccd862",
       "url": "https://jiaowc.lsnu.edu.cn/info/1088/12035.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "0d33dcf24f733a9e0aef8308d393628734f9955e5a986e36eca3a41a6798016e",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "关于做好2026年秋季学期开学工作的通知-乐山师范学院",
@@ -521,14 +521,14 @@
       "discovered_from": [],
       "id": "2eec8b2f1e415c9a",
       "url": "https://www.lsnu.edu.cn/info/1039/14043.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": "2026-08-28",
       "content_sha256": "6b329143195988ad91ae6b275746c688c005127a9c817ac6dd6e19d3c76e888d",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "党政管理机构-乐山师范学院",
@@ -538,14 +538,14 @@
       "discovered_from": [],
       "id": "79d57469bf7f675b",
       "url": "https://www.lsnu.edu.cn/zzjg/dzgljg.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "c9456a1a33832e53861d2deb299d2edb2dfbc2915554b43005d5a37349bde1bb",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "关于做好2026—2027学年度家庭经济困难学生认定工作的通知-党委学生工作部（学生处、招生与就业处、心理健康教育中心、劳动教育中心）",
@@ -555,14 +555,14 @@
       "discovered_from": [],
       "id": "72305bb4d47f5e2f",
       "url": "https://xuesc.lsnu.edu.cn/info/1035/8471.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "96ce42c4abbd108bf5eb37a890145b84df196e77f73954529d8f9d6cd247506d",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "关于开展2026年国家奖助学金评审工作的通知-党委学生工作部（学生处、招生与就业处、心理健康教育中心、劳动教育中心）",
@@ -572,14 +572,14 @@
       "discovered_from": [],
       "id": "54eace715d3dca34",
       "url": "https://xuesc.lsnu.edu.cn/info/1035/8511.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "5239071dd0edac6151192a22a2baf78fd1c9246559c1f97313ded77f3aa61343",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "关于开展2026年度校长奖学金评定工作的通知-党委学生工作部（学生处、招生与就业处、心理健康教育中心、劳动教育中心）",
@@ -591,14 +591,14 @@
       ],
       "id": "19e216b5a2dbf35d",
       "url": "https://xuesc.lsnu.edu.cn/info/1035/8521.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "2727983385249d00d61b667cc83e55bad0285642836a193eb231461f8b01a397",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "关于2026-2027学年勤工助学招聘的通知-党委学生工作部（学生处、招生与就业处、心理健康教育中心、劳动教育中心）",
@@ -608,14 +608,14 @@
       ],
       "id": "a3531c28f26acf57",
       "url": "https://xuesc.lsnu.edu.cn/info/1035/8531.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "1d424927c04428038e59a5f373a6b4dad33884750c5b234e8161ef2616a83bf2",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "党委学生工作部2026年中秋国庆假期值班表-党委学生工作部（学生处、招生与就业处、心理健康教育中心、劳动教育中心）",
@@ -625,14 +625,14 @@
       ],
       "id": "06dadb4a11f157ef",
       "url": "https://xuesc.lsnu.edu.cn/info/1035/8541.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "95d065cf018f49c3d7cb1f4f8f0345bedebfeae8bbf2c5bdbc9f3945bf2256e4",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "关于开展乐山师范学院2026年中秋国庆假期校园文化活动的通知-党委学生工作部（学生处、招生与就业处、心理健康教育中心、劳动教育中心）",
@@ -642,14 +642,14 @@
       ],
       "id": "a8e854439f8136a9",
       "url": "https://xuesc.lsnu.edu.cn/info/1035/8551.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "57424f0a9741510b3879bc5d9930b1fbd3b3aadb634e338f41ce65c56a2fe0a2",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     },
     {
       "title": "乐山师范学院2026年本科招生章程-乐山师范学院本科招生信息网",
@@ -662,23 +662,23 @@
       "discovered_from": [],
       "id": "471f10ce25aaa3aa",
       "url": "https://zs.lsnu.edu.cn/info/1155/2187.htm",
-      "checked_at": "2026-09-26T14:32:59.939590+00:00",
-      "status": "ok",
-      "error": null,
+      "checked_at": "2026-09-26T18:38:05.965591+00:00",
+      "status": "error",
+      "error": "URLError:OSError",
       "review_status": "automatic_observation",
       "published_on": null,
       "content_sha256": "0da462f865297580d5fed7c9389f54f8a8f11a90e24569a67036919186d467cb",
       "last_success_at": "2026-09-26T14:32:59.939590+00:00",
-      "change": "unchanged"
+      "change": "not_verified"
     }
   ],
   "stats": {
     "attempted": 32,
-    "succeeded": 32,
-    "failed": 0,
+    "succeeded": 0,
+    "failed": 32,
     "new": 0,
     "changed": 0
   },
   "scope": "自动观察公开通知标题、发布日期、来源与正文指纹，不复制全文、不自动改写已审核知识卡，不代表政策有效性或人工核查。",
-  "snapshot_sha256": "1486f8cefab62f49481f1808eea749f7f037675dd20148966acead0c676ac515"
+  "snapshot_sha256": "fa8741be70426ffc97a937772745d6dd03e2ce43e23568ee069ebd7a12c34db4"
 }
