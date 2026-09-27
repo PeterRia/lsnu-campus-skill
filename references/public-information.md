@@ -1,6 +1,6 @@
 # GitHub Actions 公共信息采集与同步
 
-每小时 UTC 第 17 分钟触发，也可在 GitHub Actions 手动运行。调度可能延迟，不能保证整点或秒级实时。默认超过三小时的快照标为过期；关键报名期限、费用、资格和开放安排仍直接核对官方原文。
+配置为每小时 UTC 第 17 分钟触发，也可在 GitHub Actions 手动运行。GitHub 调度可能延迟或跳过，不能保证每小时实际运行，更不是秒级实时。默认超过三小时的快照标为过期；关键报名期限、费用、资格和开放安排仍直接核对官方原文。
 
 流程为：学校公开页面 → Actions 采集 → 仓库 `public-knowledge` 分支的 `latest.json` → 本地公共缓存 → 当前 Agent 结合官方原文和已授权个人记忆回答。
 
@@ -27,7 +27,15 @@ python3 scripts/public_knowledge.py "图书馆 中秋 国庆" --snapshot "<上�
 
 ## Actions 运维
 
-工作流 `.github/workflows/collect-public.yml` 只向 `public-knowledge` 分支更新 `latest.json`，不写主分支代码或个人数据。并发执行排队，避免互相覆盖；Git 推送失败会使作业失败。每次保留 14 天采集统计 artifact。连续失败时检查 Actions 的结果和对应原站，不放宽来源域名或伪造采集时间。
+工作流 `.github/workflows/collect-public.yml` 只向 `public-knowledge` 分支更新 `latest.json`，不写主分支代码或个人数据。并发执行排队，避免互相覆盖；Git 推送失败会使作业失败。
+
+每个请求对临时网络错误最多立即重试一次。首轮采集后仍有 DNS、连接超时、网络不可达或可重试 HTTP 错误时，等待 30 秒，再补抓一次失败来源。已成功的请求复用本轮结果并保留第一次成功的时间；入口恢复后继续抓取新发现的通知。404、证书校验失败、越界跳转和页面解析错误不进入补抓。单个 URL 的网络请求最多四次；整个作业最长 20 分钟。
+
+补抓后仍失败的来源继续标为 error，保留旧内容和原来的 `last_success_at`。工作流先发布这种如实标明失败的快照，再以失败结束；本地可继续使用旧内容，但不能把它视为刚刚核查过的信息。不能通过忽略错误让作业变绿。
+
+打开某次运行的 Summary，可以看到页数、补抓轮次、恢复的 URL 数量、首轮与最终失败来源，以及原来的成功时间。错误代码区分 DNS（如 `EAI_AGAIN`）、网络不可达（`ENETUNREACH`）、连接超时与 HTTP 状态。每次保留 14 天的 `collection-report.json` artifact；发布步骤失败时也会尝试保存已生成的报告。进程在报告生成前被终止时，需查看步骤日志。
+
+连续失败时先确认失败步骤：采集报告中的网络错误需要核对学校原站与运行器连接；发布步骤失败需要检查 Git 推送；代码验证失败需要检查测试。报告只能证明观测到的错误，不能仅凭凌晨集中失败就断言学校定时关站。保留域名与证书校验，不用旧数据伪造采集成功。
 
 可在仓库 Actions 页面手动选择 **Collect public campus information → Run workflow**。本地复现可使用 `collect_public.py --output <包外路径> --previous <上次快照> --report <统计路径>`，输入来源固定从包内配置读取。
 

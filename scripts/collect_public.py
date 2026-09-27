@@ -6,8 +6,10 @@ Publishes titles, dates, URLs and source status, never full pages or local user 
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import re
+import socket
 import time
 import urllib.error
 import urllib.parse
@@ -51,16 +53,45 @@ class Metadata(HTMLParser):
             self.href = None
 
 
+def transient_error(exc):
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code in {408, 429, 500, 502, 503, 504}
+    if isinstance(exc, urllib.error.URLError):
+        return transient_error(exc.reason)
+    return isinstance(exc, (socket.gaierror, TimeoutError, ConnectionError)) or (
+        isinstance(exc, OSError)
+        and exc.errno
+        in {
+            errno.ENETUNREACH,
+            errno.EHOSTUNREACH,
+            errno.ENETDOWN,
+            errno.ETIMEDOUT,
+        }
+    )
+
+
+def error_code(exc):
+    # Structured codes only: do not publish response bodies or arbitrary messages.
+    detail = type(exc).__name__
+    if isinstance(exc, urllib.error.HTTPError):
+        return detail + ":" + str(exc.code)
+    if isinstance(exc, urllib.error.URLError):
+        return detail + ":" + error_code(exc.reason)
+    if isinstance(exc, socket.gaierror):
+        codes = {getattr(socket, k): k for k in dir(socket) if k.startswith("EAI_")}
+        detail += ":" + codes.get(exc.errno, str(exc.errno))
+    elif isinstance(exc, OSError) and exc.errno is not None:
+        detail += ":" + errno.errorcode.get(exc.errno, str(exc.errno))
+    return detail
+
+
 def fetch_page(url):
     # One retry for transient transport errors, never for parsing or origin errors.
     for attempt in range(2):
         try:
             return _fetch_page(url)
-        except urllib.error.HTTPError as exc:
-            if attempt or exc.code not in {429, 500, 502, 503, 504}:
-                raise
-        except (urllib.error.URLError, TimeoutError, ConnectionError):
-            if attempt:
+        except OSError as exc:
+            if attempt or not transient_error(exc):
                 raise
         time.sleep(1)
 
@@ -146,12 +177,7 @@ def collect(cards, feeds, previous=None, fetch=fetch_page, collected_at=None):
         try:
             return fetch(url), None
         except (OSError, ValueError, LookupError) as exc:
-            detail = type(exc).__name__
-            if isinstance(exc, urllib.error.HTTPError):
-                detail += ":" + str(exc.code)
-            elif isinstance(exc, urllib.error.URLError):
-                detail += ":" + type(exc.reason).__name__
-            return None, detail
+            return None, error_code(exc)
 
     observations = []
     with ThreadPoolExecutor(max_workers=3) as pool:
@@ -275,11 +301,132 @@ def collect(cards, feeds, previous=None, fetch=fetch_page, collected_at=None):
     return validate(value)
 
 
+def failed_sources(value):
+    return [
+        {
+            "kind": kind,
+            **{
+                k: row.get(k) for k in ("url", "error", "checked_at", "last_success_at")
+            },
+        }
+        for kind in ("feeds", "items")
+        for row in value[kind]
+        if row["status"] == "error"
+    ]
+
+
+def collect_with_recovery(
+    cards,
+    feeds,
+    previous=None,
+    fetch=fetch_page,
+    *,
+    now=lambda: datetime.now(timezone.utc).isoformat(),
+    wait=time.sleep,
+):
+    # Cache this run's observations so a recovery pass only makes failed requests
+    # and follows links newly discovered by a recovered feed.
+    cache = {}
+    at = now()
+
+    def cached_fetch(url):
+        if url not in cache:
+            try:
+                cache[url] = (fetch(url), None, at)
+            except (OSError, ValueError, LookupError) as exc:
+                cache[url] = (None, exc, at)
+        page, error, _ = cache[url]
+        if error is not None:
+            raise error
+        return page
+
+    first = collect(cards, feeds, previous, cached_fetch, at)
+    failures = failed_sources(first)
+    retry_urls = {
+        url
+        for url, (_, exc, _) in cache.items()
+        if exc is not None and transient_error(exc)
+    }
+    value = first
+    if retry_urls:
+        wait(30)
+        for url in retry_urls:
+            del cache[url]
+        at = now()
+        # Compare with the original snapshot so recovery does not erase new or
+        # changed flags. A successful first-pass fetch keeps its actual time.
+        value = collect(cards, feeds, previous, cached_fetch, at)
+        for row in [*value["feeds"], *value["items"]]:
+            if row["checked_at"] == at and row["url"] in cache:
+                row["checked_at"] = cache[row["url"]][2]
+                if row["status"] == "ok":
+                    row["last_success_at"] = row["checked_at"]
+        value = validate(seal(value))
+    remaining = failed_sources(value)
+    report = {
+        "collected_at": value["collected_at"],
+        "content_revision": value["content_revision"],
+        **value["stats"],
+        "failed_feeds": sum(f["status"] != "ok" for f in value["feeds"]),
+        "collection_rounds": 2 if retry_urls else 1,
+        "retry_delay_seconds": 30 if retry_urls else 0,
+        "retried_urls": sorted(retry_urls & cache.keys()),
+        "initial_failures": failures,
+        "remaining_failures": remaining,
+        "recovered_urls": sorted(
+            url
+            for url in retry_urls
+            if url in cache
+            and cache[url][1] is None
+            and url not in {r["url"] for r in remaining}
+        ),
+    }
+    return value, report
+
+
+def write_job_summary(report, path):
+    rows = [
+        "## Official campus information collection",
+        "",
+        f"Snapshot: `{report['collected_at']}`",
+        "",
+        f"Pages: {report['succeeded']}/{report['attempted']} succeeded; "
+        f"{report['failed_feeds']} failed feeds.",
+        "",
+        f"Collection rounds: {report['collection_rounds']}; "
+        f"recovered URLs: {len(report['recovered_urls'])}.",
+        "",
+    ]
+    for title, key in (
+        ("Initial failures", "initial_failures"),
+        ("Remaining failures", "remaining_failures"),
+    ):
+        rows += [f"### {title}", ""]
+        if not report[key]:
+            rows += ["None.", ""]
+            continue
+        rows += ["| Source | Error | Last successful fetch |", "| --- | --- | --- |"]
+        for failure in report[key]:
+            rows.append(
+                f"| {failure['url']} | {failure['error']} | "
+                f"{failure['last_success_at'] or 'never'} |"
+            )
+        rows.append("")
+    rows += [
+        "Unreachable sources keep their previous content and success time. "
+        "Unresolved failures still fail the job.",
+        "",
+    ]
+    with Path(path).open("a", encoding="utf-8") as stream:
+        stream.write("\n".join(rows))
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--previous", type=Path)
     p.add_argument("--report", type=Path)
+    p.add_argument("--summary", type=Path)
     args = p.parse_args()
     previous = (
         json.loads(args.previous.read_text())
@@ -288,16 +435,12 @@ def main():
     )
     cards = json.loads((ROOT / "kb/catalog.json").read_text())["cards"]
     feeds = json.loads((ROOT / "kb/public-sources.json").read_text())["feeds"]
-    value = collect(cards, feeds, previous)
+    value, report = collect_with_recovery(cards, feeds, previous)
     atomic_json(args.output, value)
-    report = {
-        "collected_at": value["collected_at"],
-        "content_revision": value["content_revision"],
-        **value["stats"],
-        "failed_feeds": sum(f["status"] != "ok" for f in value["feeds"]),
-    }
     if args.report:
         atomic_json(args.report, report)
+    if args.summary:
+        write_job_summary(report, args.summary)
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
 

@@ -11,7 +11,7 @@ concurrency:
 jobs:
   collect:
     runs-on: ubuntu-22.04
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -28,6 +28,7 @@ jobs:
           --previous public-data/latest.json
           --output public-data/latest.json
           --report "${{ runner.temp }}/collection-report.json"
+          --summary "$GITHUB_STEP_SUMMARY"
       - name: Publish the public snapshot
         working-directory: public-data
         run: |
@@ -39,11 +40,13 @@ jobs:
             git push origin HEAD:public-knowledge
           fi
       - name: Keep collection statistics
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: public-collection-${{ github.run_id }}
           path: ${{ runner.temp }}/collection-report.json
           retention-days: 14
+          if-no-files-found: warn
       - name: Report incomplete collection
         run: |
           python - <<'PY'

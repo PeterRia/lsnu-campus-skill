@@ -2,14 +2,17 @@
 
 # ruff: noqa: E402 -- installed folder Skill, no package installation.
 
+import errno
 import json
+import socket
+import ssl
 import sys
 import tempfile
 import unittest
 import urllib.error
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -22,6 +25,7 @@ FEED = "https://libnew.lsnu.edu.cn/"
 NOTICE = FEED + "info/1004/4061.htm"
 FIRST = "2026-09-20T01:00:00+00:00"
 SECOND = "2026-09-20T02:00:00+00:00"
+RECOVERY = "2026-09-20T02:00:30+00:00"
 
 
 class CollectionTests(unittest.TestCase):
@@ -120,6 +124,144 @@ class CollectionTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 collector.fetch_page(NOTICE)
             self.assertEqual(fetch.call_count, 1)
+
+    def recover(self, previous=None, fetch=None):
+        clock = iter([SECOND, RECOVERY])
+        wait = Mock()
+        result = collector.collect_with_recovery(
+            [],
+            self.feeds,
+            previous,
+            fetch or self.pages.__getitem__,
+            now=lambda: next(clock),
+            wait=wait,
+        )
+        return (*result, wait)
+
+    def test_late_feed_recovery_discovers_new_notice_without_refetching_good_pages(
+        self,
+    ):
+        first = self.snapshot()
+        added = FEED + "info/1004/4062.htm"
+        self.pages[FEED]["links"].append((added, "新通知"))
+        self.pages[added] = {**self.pages[NOTICE], "title": "新通知"}
+        self.pages[NOTICE]["content_sha256"] = "b" * 64
+        calls = []
+
+        def fetch(url):
+            calls.append(url)
+            if url == FEED and calls.count(FEED) == 1:
+                raise urllib.error.URLError(socket.gaierror(socket.EAI_AGAIN, "DNS"))
+            return self.pages[url]
+
+        value, report, wait = self.recover(first, fetch)
+        wait.assert_called_once_with(30)
+        self.assertEqual(calls.count(FEED), 2)
+        self.assertEqual(calls.count(NOTICE), 1)
+        self.assertEqual(calls.count(added), 1)
+        self.assertEqual(
+            value["stats"],
+            {
+                "attempted": 2,
+                "succeeded": 2,
+                "failed": 0,
+                "new": 1,
+                "changed": 1,
+            },
+        )
+        records = {row["url"]: row for row in value["items"]}
+        self.assertEqual(records[NOTICE]["last_success_at"], SECOND)
+        self.assertEqual(records[added]["last_success_at"], RECOVERY)
+        self.assertEqual(value["feeds"][0]["last_success_at"], RECOVERY)
+        self.assertEqual(report["recovered_urls"], [FEED])
+        self.assertEqual(report["remaining_failures"], [])
+        self.assertEqual(
+            report["initial_failures"][0]["error"], "URLError:gaierror:EAI_AGAIN"
+        )
+
+    def test_late_page_recovery_preserves_successful_feed_time(self):
+        first = self.snapshot()
+        calls = []
+
+        def fetch(url):
+            calls.append(url)
+            if url == NOTICE and calls.count(NOTICE) == 1:
+                raise urllib.error.URLError(TimeoutError())
+            return self.pages[url]
+
+        value, report, _ = self.recover(first, fetch)
+        self.assertEqual(calls.count(FEED), 1)
+        self.assertEqual(calls.count(NOTICE), 2)
+        self.assertEqual(value["feeds"][0]["last_success_at"], SECOND)
+        self.assertEqual(value["items"][0]["last_success_at"], RECOVERY)
+        self.assertEqual(report["recovered_urls"], [NOTICE])
+
+    def test_sustained_outage_stays_failed_and_preserves_original_success_time(self):
+        first = self.snapshot()
+        fetch = Mock(
+            side_effect=urllib.error.URLError(
+                OSError(errno.ENETUNREACH, "network unreachable")
+            )
+        )
+        value, report, wait = self.recover(first, fetch)
+        self.assertEqual(fetch.call_count, 4)
+        wait.assert_called_once_with(30)
+        self.assertEqual(report["failed"], 1)
+        self.assertEqual(report["failed_feeds"], 1)
+        self.assertEqual(report["recovered_urls"], [])
+        self.assertEqual(value["content_revision"], first["content_revision"])
+        for row in value["items"] + value["feeds"]:
+            self.assertEqual(row["status"], "error")
+            self.assertEqual(row["last_success_at"], FIRST)
+            self.assertEqual(row["checked_at"], RECOVERY)
+            self.assertEqual(row["error"], "URLError:OSError:ENETUNREACH")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "summary.md"
+            collector.write_job_summary(report, path)
+            summary = path.read_text()
+        self.assertIn("ENETUNREACH", summary)
+        self.assertIn(FIRST, summary)
+        self.assertIn(NOTICE, summary)
+
+    def test_permanent_errors_and_empty_feeds_do_not_start_recovery(self):
+        first = self.snapshot()
+        errors = [
+            ValueError("untrusted origin or invalid page"),
+            urllib.error.HTTPError(NOTICE, 404, "missing", {}, None),
+            urllib.error.URLError(ssl.SSLCertVerificationError("certificate")),
+        ]
+        for error in errors:
+            with self.subTest(error=type(error).__name__):
+                fetch = Mock(side_effect=error)
+                value, report, wait = self.recover(first, fetch)
+                wait.assert_not_called()
+                self.assertEqual(fetch.call_count, 2)
+                self.assertEqual(report["collection_rounds"], 1)
+                self.assertEqual(report["failed_feeds"], 1)
+                self.assertEqual(value["items"][0]["last_success_at"], FIRST)
+        self.pages[FEED]["links"] = []
+        value, report, wait = self.recover(first)
+        wait.assert_not_called()
+        self.assertEqual(value["feeds"][0]["error"], "NoUsableNoticeLinks")
+
+    def test_healthy_collection_never_waits_or_repeats_requests(self):
+        fetch = Mock(side_effect=self.pages.__getitem__)
+        value, report, wait = self.recover(fetch=fetch)
+        wait.assert_not_called()
+        self.assertEqual(fetch.call_count, 2)
+        self.assertEqual(report["collection_rounds"], 1)
+        self.assertEqual(report["initial_failures"], [])
+        self.assertEqual(value["collected_at"], SECOND)
+
+    def test_error_diagnostics_keep_codes_without_exception_text(self):
+        error = urllib.error.URLError(OSError(errno.ENETUNREACH, "response body"))
+        self.assertEqual(collector.error_code(error), "URLError:OSError:ENETUNREACH")
+        self.assertEqual(
+            collector.error_code(
+                urllib.error.HTTPError(NOTICE, 503, "response body", {}, None)
+            ),
+            "HTTPError:503",
+        )
 
     def test_source_scope_and_redirect_are_enforced(self):
         self.pages[FEED]["links"] += [
