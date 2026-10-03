@@ -1,4 +1,4 @@
-"""Prefer IPv4, retain address errors, and cache this process's official DNS answers.
+"""Prefer IPv4, retain errors, and bound repeated failures of official hosts.
 
 HTTPS keeps the original hostname for SNI and certificate verification. No proxy,
 fixed IP, alternate DNS provider, or disk-backed address cache is introduced.
@@ -17,14 +17,18 @@ from campus import official_url
 
 _CACHE = {}
 _LOCKS = {}
+_CIRCUITS = {}
 _GUARD = threading.Lock()
 DNS_TTL_SECONDS = 60
+CIRCUIT_FAILURE_THRESHOLD = 3
+CIRCUIT_COOLDOWN_SECONDS = 30
 
 
 def clear_dns_cache():
     with _GUARD:
         _CACHE.clear()
         _LOCKS.clear()
+        _CIRCUITS.clear()
 
 
 def resolve_addresses(host, port, family):
@@ -62,10 +66,56 @@ class ConnectionAttemptsError(OSError):
         super().__init__("official connection attempts failed")
 
 
+class HostCircuitOpen(ConnectionError):
+    """A suppressed request, with the latest actual failures kept separately."""
+
+    def __init__(self, errors, attempts, retry_after_seconds):
+        self.errors = tuple(errors)
+        self.attempts = tuple(attempts)
+        self.retry_after_seconds = max(0, retry_after_seconds)
+        super().__init__("official host connection cooling down")
+
+
+def _check_circuit(host, port):
+    key = (host.lower(), port)
+    now = time.monotonic()
+    with _GUARD:
+        state = _CIRCUITS.get(key)
+        if state and now < state["opened_until"]:
+            raise HostCircuitOpen(
+                state["errors"], state["attempts"], state["opened_until"] - now
+            )
+    return key
+
+
+def _record_connection_failure(key, errors, attempts):
+    with _GUARD:
+        old = _CIRCUITS.get(key)
+        failures = old["failures"] + 1 if old else 1
+        _CIRCUITS[key] = {
+            "failures": failures,
+            "opened_until": (
+                time.monotonic() + CIRCUIT_COOLDOWN_SECONDS
+                if failures >= CIRCUIT_FAILURE_THRESHOLD else 0
+            ),
+            "errors": tuple(errors),
+            "attempts": tuple(attempts),
+        }
+
+
+def _record_connection_success(key):
+    with _GUARD:
+        _CIRCUITS.pop(key, None)
+
+
 def connect_official(address, timeout=20, source_address=None):
     host, port = address
     if not official_url(f"http://{host}:{port}/"):
         raise ValueError("连接目标不属于官方来源")
+    # This check covers new connections only. Already-running calls can finish
+    # after another thread opens the circuit, so the threshold is not a strict
+    # upper bound on concurrent attempts. No request waits inside this lock.
+    circuit_key = _check_circuit(host, port)
     if timeout is socket._GLOBAL_DEFAULT_TIMEOUT or timeout is None:
         timeout = 20
     deadline = time.monotonic() + timeout
@@ -94,6 +144,7 @@ def connect_official(address, timeout=20, source_address=None):
                 sock.connect(endpoint)
                 # The caller's original read/TLS timeout remains in force.
                 sock.settimeout(timeout)
+                _record_connection_success(circuit_key)
                 return sock
             except OSError as exc:
                 if sock is not None:
@@ -104,6 +155,7 @@ def connect_official(address, timeout=20, source_address=None):
         exc = TimeoutError()
         errors.append(exc)
         attempts.append({"family": "unresolved", "stage": "deadline", "error": connection_code(exc)})
+    _record_connection_failure(circuit_key, errors, attempts)
     raise ConnectionAttemptsError(errors, attempts)
 
 

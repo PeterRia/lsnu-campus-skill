@@ -3,6 +3,7 @@
 # ruff: noqa: E402 -- folder Skill has no separately installed Python package.
 
 import io
+import ssl
 import sys
 import unittest
 from http.client import BadStatusLine, HTTPResponse, IncompleteRead
@@ -12,6 +13,7 @@ from unittest.mock import Mock, patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import collect_public as collector
+from official_transport import HostCircuitOpen
 
 
 FEED = "https://jiaowc.lsnu.edu.cn/"
@@ -101,6 +103,34 @@ class PublicTransportTests(unittest.TestCase):
                         collector.fetch_page(NOTICE)
                     self.assertEqual(fetch.call_count, 2)
                     wait.assert_called_once_with(1)
+
+    def test_tls_early_eof_retries_without_mislabeling_it_as_an_os_errno(self):
+        error = ssl.SSLEOFError(ssl.SSL_ERROR_EOF, "synthetic response text")
+        with (
+            patch.object(collector, "_fetch_page", side_effect=[error, self.pages[NOTICE]]) as fetch,
+            patch.object(collector.time, "sleep"),
+        ):
+            self.assertEqual(collector.fetch_page(NOTICE), self.pages[NOTICE])
+            self.assertEqual(fetch.call_count, 2)
+        self.assertEqual(collector.error_code(error), "SSLEOFError:SSL_ERROR_EOF")
+        self.assertFalse(collector.transient_error(
+            ssl.SSLCertVerificationError(ssl.SSL_ERROR_SSL, "certificate")
+        ))
+
+    def test_suppressed_connection_is_distinct_from_its_prior_actual_failure(self):
+        error = HostCircuitOpen(
+            [TimeoutError()], [{"family": "IPv4", "error": "TimeoutError"}], 17
+        )
+        self.assertTrue(collector.transient_error(error))
+        self.assertEqual(
+            collector.error_code(error), "HostCircuitOpen[previous=IPv4:TimeoutError]"
+        )
+        previous = self.previous_snapshot()
+        value, report, wait = self.recover(previous, Mock(side_effect=error))
+        wait.assert_called_once_with(30)
+        self.assertEqual(report["retryable_failed_urls"], sorted([FEED, NOTICE]))
+        self.assertEqual(value["items"][0]["last_success_at"], FIRST)
+        self.assertIn("HostCircuitOpen[previous=", report["remaining_failures"][0]["error"])
 
     def test_late_protocol_recovery_preserves_other_source_success_time(self):
         previous = self.previous_snapshot()

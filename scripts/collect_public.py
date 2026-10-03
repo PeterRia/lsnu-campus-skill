@@ -10,6 +10,7 @@ import errno
 import json
 import re
 import socket
+import ssl
 import time
 import urllib.error
 import urllib.parse
@@ -22,7 +23,8 @@ from pathlib import Path
 
 from campus import ROOT, OfficialRedirect, PageText, official_url
 from official_transport import (
-    ConnectionAttemptsError, OfficialHTTPHandler, OfficialHTTPSHandler, clear_dns_cache,
+    ConnectionAttemptsError, HostCircuitOpen, OfficialHTTPHandler, OfficialHTTPSHandler,
+    clear_dns_cache,
 )
 from public_knowledge import SKILL, checksum, seal, validate
 from public_update import atomic_json
@@ -67,7 +69,7 @@ def transient_error(exc):
         return exc.code in {408, 429, 500, 502, 503, 504}
     if isinstance(exc, urllib.error.URLError):
         return transient_error(exc.reason)
-    return isinstance(exc, (socket.gaierror, TimeoutError, ConnectionError,
+    return isinstance(exc, (socket.gaierror, TimeoutError, ConnectionError, ssl.SSLEOFError,
                             IncompleteRead, BadStatusLine)) or (
         isinstance(exc, OSError)
         and exc.errno
@@ -83,15 +85,20 @@ def transient_error(exc):
 def error_code(exc):
     # Structured codes only: do not publish response bodies or arbitrary messages.
     detail = type(exc).__name__
-    if isinstance(exc, ConnectionAttemptsError):
-        return detail + "[" + "|".join(
+    if isinstance(exc, (ConnectionAttemptsError, HostCircuitOpen)):
+        prior = "previous=" if isinstance(exc, HostCircuitOpen) else ""
+        return detail + "[" + prior + "|".join(
             attempt["family"] + ":" + attempt["error"] for attempt in exc.attempts
         ) + "]"
     if isinstance(exc, urllib.error.HTTPError):
         return detail + ":" + str(exc.code)
     if isinstance(exc, urllib.error.URLError):
         return detail + ":" + error_code(exc.reason)
-    if isinstance(exc, socket.gaierror):
+    if isinstance(exc, ssl.SSLError):
+        codes = {getattr(ssl, k): k for k in dir(ssl) if k.startswith("SSL_ERROR_")}
+        if exc.errno is not None:
+            detail += ":" + codes.get(exc.errno, str(exc.errno))
+    elif isinstance(exc, socket.gaierror):
         codes = {getattr(socket, k): k for k in dir(socket) if k.startswith("EAI_")}
         detail += ":" + codes.get(exc.errno, str(exc.errno))
     elif isinstance(exc, OSError) and exc.errno is not None:
