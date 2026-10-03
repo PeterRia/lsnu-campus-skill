@@ -48,8 +48,8 @@ def exception_details(exc: BaseException) -> dict:
         else:
             data["code"] = errno.errorcode.get(number, str(number))
     if isinstance(exc, ssl.SSLCertVerificationError):
-        data["verify_code"] = exc.verify_code
-        data["verify_message"] = exc.verify_message
+        data["verify_code"] = getattr(exc, "verify_code", None)
+        data["verify_message"] = getattr(exc, "verify_message", None)
     return data
 
 
@@ -172,6 +172,11 @@ def diagnose_source(feed: dict) -> dict:
         dns["probe_limit"] = MAX_ADDRESSES_PER_FAMILY
         dns["unprobed_addresses"] = addresses[MAX_ADDRESSES_PER_FAMILY:]
         for address in addresses[:MAX_ADDRESSES_PER_FAMILY]:
+            if not ipaddress.ip_address(address).is_global:
+                result["probes"].append({"address": address,
+                                         "family": "IPv4" if family == "A" else "IPv6",
+                                         "status": "skipped_non_global_address"})
+                continue
             probe = bounded_worker(["--_probe", url, address], PROBE_TIMEOUT)
             probe.setdefault("address", address)
             probe.setdefault("family", "IPv4" if family == "A" else "IPv6")
@@ -240,6 +245,7 @@ def main() -> int:
                    "max_workers": 3, "per_source_worker_budget_seconds": 58},
         "policy": {"system_resolver_only": True, "proxy_used": False,
                    "tls_certificate_verification": True, "private_memory_read": False},
+        "resolver_api": "socket.getaddrinfo with separate AF_INET and AF_INET6 calls; answers may be synthesized by the system resolver",
     }
     with ThreadPoolExecutor(max_workers=3) as executor:
         report["sources"] = list(executor.map(diagnose_source, feeds))

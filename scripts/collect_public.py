@@ -16,12 +16,19 @@ import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from http.client import BadStatusLine, IncompleteRead
 from html.parser import HTMLParser
 from pathlib import Path
 
 from campus import ROOT, OfficialRedirect, PageText, official_url
+from official_transport import (
+    ConnectionAttemptsError, OfficialHTTPHandler, OfficialHTTPSHandler, clear_dns_cache,
+)
 from public_knowledge import SKILL, checksum, seal, validate
 from public_update import atomic_json
+
+TRANSPORT_ERRORS = (OSError, IncompleteRead, BadStatusLine)
+COLLECTION_ERRORS = (*TRANSPORT_ERRORS, ValueError, LookupError)
 
 
 class Metadata(HTMLParser):
@@ -54,11 +61,14 @@ class Metadata(HTMLParser):
 
 
 def transient_error(exc):
+    if isinstance(exc, ConnectionAttemptsError):
+        return any(transient_error(error) for error in exc.errors)
     if isinstance(exc, urllib.error.HTTPError):
         return exc.code in {408, 429, 500, 502, 503, 504}
     if isinstance(exc, urllib.error.URLError):
         return transient_error(exc.reason)
-    return isinstance(exc, (socket.gaierror, TimeoutError, ConnectionError)) or (
+    return isinstance(exc, (socket.gaierror, TimeoutError, ConnectionError,
+                            IncompleteRead, BadStatusLine)) or (
         isinstance(exc, OSError)
         and exc.errno
         in {
@@ -73,6 +83,10 @@ def transient_error(exc):
 def error_code(exc):
     # Structured codes only: do not publish response bodies or arbitrary messages.
     detail = type(exc).__name__
+    if isinstance(exc, ConnectionAttemptsError):
+        return detail + "[" + "|".join(
+            attempt["family"] + ":" + attempt["error"] for attempt in exc.attempts
+        ) + "]"
     if isinstance(exc, urllib.error.HTTPError):
         return detail + ":" + str(exc.code)
     if isinstance(exc, urllib.error.URLError):
@@ -90,7 +104,7 @@ def fetch_page(url):
     for attempt in range(2):
         try:
             return _fetch_page(url)
-        except OSError as exc:
+        except TRANSPORT_ERRORS as exc:
             if attempt or not transient_error(exc):
                 raise
         time.sleep(1)
@@ -100,13 +114,26 @@ def _fetch_page(url):
     if not official_url(url):
         raise ValueError("只允许明确的乐师官方来源")
     opener = urllib.request.build_opener(
-        urllib.request.ProxyHandler({}), OfficialRedirect()
+        urllib.request.ProxyHandler({}), OfficialRedirect(),
+        OfficialHTTPHandler(), OfficialHTTPSHandler(),
     )
     request = urllib.request.Request(
         url, headers={"User-Agent": "lsnu-campus-skill/1.2 public-notice-monitor"}
     )
     with opener.open(request, timeout=20) as response:
+        declared = response.headers.get("Content-Length")
+        expected = None
+        if declared is not None and "chunked" not in response.headers.get(
+            "Transfer-Encoding", ""
+        ).lower():
+            expected = int(declared)
+            if not 0 <= expected <= 2_000_000:
+                raise ValueError("附件或过大页面需要单独核查")
         content = response.read(2_000_001)
+        if expected is not None and len(content) < expected:
+            # HTTPResponse.read(amount) can silently accept early EOF, unlike
+            # read() without an amount. Never fingerprint an incomplete page.
+            raise IncompleteRead(content, expected - len(content))
         if len(content) > 2_000_000 or "html" not in response.headers.get(
             "Content-Type", ""
         ):
@@ -176,7 +203,7 @@ def collect(cards, feeds, previous=None, fetch=fetch_page, collected_at=None):
     def attempt(url):
         try:
             return fetch(url), None
-        except (OSError, ValueError, LookupError) as exc:
+        except COLLECTION_ERRORS as exc:
             return None, error_code(exc)
 
     observations = []
@@ -288,6 +315,7 @@ def collect(cards, feeds, previous=None, fetch=fetch_page, collected_at=None):
             "content_revision": content_revision,
             "feeds": observations,
             "items": items,
+            "active_item_urls": sorted(targets),
             "stats": {
                 "attempted": len(targets),
                 "succeeded": sum(x[0] is not None for x in results),
@@ -326,6 +354,7 @@ def collect_with_recovery(
 ):
     # Cache this run's observations so a recovery pass only makes failed requests
     # and follows links newly discovered by a recovered feed.
+    clear_dns_cache()
     cache = {}
     at = now()
 
@@ -333,7 +362,7 @@ def collect_with_recovery(
         if url not in cache:
             try:
                 cache[url] = (fetch(url), None, at)
-            except (OSError, ValueError, LookupError) as exc:
+            except COLLECTION_ERRORS as exc:
                 cache[url] = (None, exc, at)
         page, error, _ = cache[url]
         if error is not None:
@@ -365,6 +394,7 @@ def collect_with_recovery(
     remaining = failed_sources(value)
     report = {
         "collected_at": value["collected_at"],
+        "collection_started_at": first["collected_at"],
         "content_revision": value["content_revision"],
         **value["stats"],
         "failed_feeds": sum(f["status"] != "ok" for f in value["feeds"]),
@@ -380,6 +410,11 @@ def collect_with_recovery(
             and cache[url][1] is None
             and url not in {r["url"] for r in remaining}
         ),
+        "retryable_failed_urls": sorted(
+            url for url, (_, exc, _) in cache.items()
+            if exc is not None and transient_error(exc)
+        ),
+        "previous_snapshot_sha256": previous.get("snapshot_sha256") if previous else None,
     }
     return value, report
 

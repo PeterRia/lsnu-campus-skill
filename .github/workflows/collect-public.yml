@@ -3,31 +3,122 @@ on:
   schedule:
     - cron: '17 * * * *'
   workflow_dispatch:
+    inputs:
+      exercise_fallback:
+        description: 'Skip the primary fetch to verify real recovery on macOS (manual test only)'
+        type: boolean
+        default: false
 permissions:
-  contents: write
+  contents: read
 concurrency:
   group: public-campus-information
   cancel-in-progress: false
 jobs:
-  collect:
+  primary:
+    name: Collect on Ubuntu
     runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    outputs:
+      recover: ${{ steps.health.outputs.recover }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - uses: actions/checkout@v4
+        with:
+          ref: public-knowledge
+          path: public-data
+      - name: Record attempt mode
+        env:
+          EXERCISE_FALLBACK: ${{ inputs.exercise_fallback || false }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/attempt"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          mode = 'exercise_primary_unavailability' if os.environ['EXERCISE_FALLBACK'] == 'true' else 'live'
+          (Path(os.environ['RUNNER_TEMP']) / 'attempt/attempt-mode.json').write_text(json.dumps({'mode': mode}) + '\n')
+          PY
+      - name: Collect official pages
+        if: ${{ !inputs.exercise_fallback }}
+        run: >-
+          python scripts/collect_public.py
+          --previous public-data/latest.json
+          --output "$RUNNER_TEMP/attempt/snapshot.json"
+          --report "$RUNNER_TEMP/attempt/collection-report.json"
+          --summary "$GITHUB_STEP_SUMMARY"
+      - name: Validate attempt and decide recovery
+        id: health
+        run: python scripts/collection_ci.py health --folder "$RUNNER_TEMP/attempt" --runner ubuntu
+      - name: Keep primary evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-attempt-ubuntu-${{ github.run_id }}
+          path: ${{ runner.temp }}/attempt/
+          if-no-files-found: error
+          retention-days: 30
+  fallback:
+    name: Recover on macOS
+    needs: primary
+    if: ${{ needs.primary.result == 'success' && needs.primary.outputs.recover == 'true' }}
+    runs-on: macos-14
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.14'
-      - name: Read current public snapshot branch
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: public-knowledge
           path: public-data
-      - name: Collect official notice metadata
+      - name: Collect from the same original public snapshot
         run: >-
           python scripts/collect_public.py
           --previous public-data/latest.json
+          --output "$RUNNER_TEMP/attempt/snapshot.json"
+          --report "$RUNNER_TEMP/attempt/collection-report.json"
+          --summary "$GITHUB_STEP_SUMMARY"
+      - name: Validate recovery attempt
+        run: python scripts/collection_ci.py health --folder "$RUNNER_TEMP/attempt" --runner macos
+      - name: Keep recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-attempt-macos-${{ github.run_id }}
+          path: ${{ runner.temp }}/attempt/
+          if-no-files-found: error
+          retention-days: 30
+  publish:
+    name: Publish verified public snapshot
+    needs: [primary, fallback]
+    if: ${{ always() && needs.primary.result == 'success' }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - uses: actions/checkout@v4
+        with:
+          ref: public-knowledge
+          path: public-data
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: public-attempt-*-${{ github.run_id }}
+          path: ${{ runner.temp }}/attempts/
+      - name: Choose a validated actual observation
+        run: >-
+          python scripts/collection_ci.py select
+          --primary "$RUNNER_TEMP/attempts/public-attempt-ubuntu-${{ github.run_id }}"
+          --fallback "$RUNNER_TEMP/attempts/public-attempt-macos-${{ github.run_id }}"
           --output public-data/latest.json
-          --report "${{ runner.temp }}/collection-report.json"
+          --report "$RUNNER_TEMP/collection-report.json"
           --summary "$GITHUB_STEP_SUMMARY"
       - name: Publish the public snapshot
         working-directory: public-data
@@ -39,21 +130,13 @@ jobs:
             git commit -m 'Refresh official campus information snapshot'
             git push origin HEAD:public-knowledge
           fi
-      - name: Keep collection statistics
+      - name: Keep final selection statistics
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: public-collection-${{ github.run_id }}
           path: ${{ runner.temp }}/collection-report.json
-          retention-days: 14
+          retention-days: 30
           if-no-files-found: warn
-      - name: Report incomplete collection
-        run: |
-          python - <<'PY'
-          import json, os
-          from pathlib import Path
-          r = json.loads((Path(os.environ['RUNNER_TEMP']) / 'collection-report.json').read_text())
-          print(json.dumps(r, ensure_ascii=False, indent=2))
-          if r['failed'] or r['failed_feeds']:
-              raise SystemExit('Some official sources failed; the published snapshot preserves their last successful timestamps.')
-          PY
+      - name: Require actual complete collection
+        run: python scripts/collection_ci.py require-healthy --report "$RUNNER_TEMP/collection-report.json"
