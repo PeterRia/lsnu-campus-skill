@@ -1,0 +1,31 @@
+name: Diagnose official source connectivity
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ['ubuntu-22.04', 'macos-14']
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Measure DNS and each address family
+        run: >-
+          python scripts/diagnose_public_network.py
+          --sources ../kb/public-sources.json
+          --output "${{ runner.temp }}/network-diagnostics.json"
+      - name: Keep public connectivity evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-network-${{ matrix.os }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/network-diagnostics.json
+          if-no-files-found: error
+          retention-days: 30

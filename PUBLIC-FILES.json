@@ -1,5 +1,6 @@
 [
   ".github/workflows/collect-public.yml",
+  ".github/workflows/diagnose-public-network.yml",
   ".github/workflows/verify.yml",
   ".gitignore",
   "CHANGELOG.md",
@@ -53,6 +54,7 @@
   "scripts/companion.py",
   "scripts/contribution.py",
   "scripts/credits.py",
+  "scripts/diagnose_public_network.py",
   "scripts/isolation.py",
   "scripts/maintain.py",
   "scripts/memory.py",
