@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 
 from collect_public import write_job_summary
+from collection_window import DEFERRED_MODE, window_status
 from public_knowledge import instant, validate
 from public_update import atomic_json
 
@@ -21,6 +22,13 @@ def load_attempt(folder, runner):
             raise ValueError("模拟标记只能用于手动测试的主采集环境")
         return {"runner": runner, "mode": mode["mode"], "healthy": False,
                 "recover": True, "snapshot": None, "report": None}
+    if mode.get("mode") == DEFERRED_MODE:
+        if window_status(instant(mode["checked_at"]))["allowed"]:
+            raise ValueError("白天采集不能标记为夜间延后")
+        if (folder / "snapshot.json").exists() or (folder / "collection-report.json").exists():
+            raise ValueError("延后标记不能掩盖实际采集结果")
+        return {"runner": runner, "mode": DEFERRED_MODE, "healthy": False,
+                "recover": False, "snapshot": None, "report": None}
     value = validate(json.loads((folder / "snapshot.json").read_text()))
     report = json.loads((folder / "collection-report.json").read_text())
     for key in ("collected_at", "content_revision"):
@@ -102,6 +110,7 @@ def main():
         with Path(os.environ["GITHUB_OUTPUT"]).open("a") as stream:
             stream.write(f"healthy={str(attempt['healthy']).lower()}\n")
             stream.write(f"recover={str(attempt['recover']).lower()}\n")
+            stream.write(f"has_snapshot={str(attempt['snapshot'] is not None).lower()}\n")
         print(json.dumps({k: attempt[k] for k in ("runner", "mode", "healthy", "recover")}))
     elif args.command == "select":
         primary = load_attempt(args.primary, "ubuntu")

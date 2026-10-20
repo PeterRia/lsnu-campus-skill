@@ -271,6 +271,51 @@ class CollectionCITests(unittest.TestCase):
         self.assertIsNone(report["attempts"][0]["report"])
         ci.require_healthy(report)
 
+    def deferred_folder(self, at="2026-09-20T15:00:00+00:00"):
+        folder = self.root / "deferred"
+        folder.mkdir()
+        self.write(folder / "attempt-mode.json", {
+            "mode": ci.DEFERRED_MODE, "checked_at": at,
+            "allowed": False, "reason": "outside_collection_window",
+        })
+        return folder
+
+    def test_night_deferred_attempt_is_not_healthy_and_cannot_publish(self):
+        folder = self.deferred_folder()
+        attempt = ci.load_attempt(folder, "ubuntu")
+        self.assertFalse(attempt["healthy"])
+        self.assertFalse(attempt["recover"])
+        self.assertIsNone(attempt["snapshot"])
+        with self.assertRaises(ValueError):
+            ci.choose_attempt(attempt)
+        with self.assertRaises(ValueError):
+            ci.choose_attempt(ci.load_attempt(self.exercise_folder(), "ubuntu"), attempt)
+
+    def test_daytime_deferred_marker_is_rejected(self):
+        folder = self.deferred_folder("2026-09-20T02:00:00+00:00")
+        with self.assertRaises(ValueError):
+            ci.load_attempt(folder, "macos")
+
+    def test_deferred_marker_cannot_hide_real_snapshot(self):
+        folder = self.deferred_folder()
+        self.write(folder / "snapshot.json", self.previous)
+        with self.assertRaises(ValueError):
+            ci.load_attempt(folder, "macos")
+
+    def test_night_deferred_fallback_cannot_hide_actual_primary_failure(self):
+        offline = Mock(side_effect=TimeoutError("synthetic sustained outage"))
+        primary, _, _ = self.attempt("ubuntu", fetch=offline)
+        deferred = self.deferred_folder()
+        value, report = ci.choose_attempt(
+            ci.load_attempt(primary, "ubuntu"), ci.load_attempt(deferred, "macos")
+        )
+        self.assertEqual(report["selected_runner"], "ubuntu")
+        self.assertFalse(report["verified_healthy"])
+        self.assertEqual(report["attempts"][1]["mode"], ci.DEFERRED_MODE)
+        self.assertEqual(value["items"][0]["last_success_at"], FIRST)
+        with self.assertRaises(ValueError):
+            ci.require_healthy(report)
+
     def test_different_baseline_hashes_are_rejected(self):
         primary_folder, _, _ = self.attempt("ubuntu")
         fallback_folder, _, report = self.attempt("macos", THIRD)

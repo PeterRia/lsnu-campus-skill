@@ -13,7 +13,7 @@ license: MIT
 - **每次独立调用的第一项操作**：以实际安装目录运行 `python3 "<安装目录>/scripts/companion.py" start`。先检查固定可信 GitHub 的公共版本，按既有权限更新公共缓存，再幂等创建独立的 `lsnu-personal-memory` Skill。下载文件本身不会运行代码；没有安装钩子的宿主在首次调用初始化。内部工具步骤不用重复检查。
 - 每个新的校园请求都需要本次 `start` 的实际结果，不能沿用上一轮或另一会话的版本检查。检索知识卡、核对学校原页与检查 Skill 公共版本是不同操作，不能相互替代；缺少本次检查结果时先补做，再调用个人 Skill。
 - 按实际结果解释更新状态：`current` 已核对当前版、`updated` 已切换、`local_newer` 本地版较新、`unavailable_using_local` 或 `isolation_or_network_unavailable` 未完成核验、`permission_review_required` 等待权限审阅。从 `update.public_root` 读取该版的 `SKILL.md`、知识和工具；同次内部加载不重复启动更新，下次调用仍从原安装入口启动。更新成功不等于政策仍有效。无 shell／网络时说明限制并继续离线服务，不假称同步成功。
-- 同一步还会同步 GitHub Actions 每小时采集的公共信息快照，查看 `update.knowledge` 的实际状态、`collected_at` 与 `freshness`。通过 `python3 "<公共目录>/scripts/public_knowledge.py" "主题词" --snapshot "<snapshot_path>"` 查找新公告及变化来源，然后回读官方原文。不要只检索旧知识卡而忽略已同步的新通知。快照超过三小时、来源失败或同步失败时如实说明；定时轮询不等于秒级实时。详见 [公共信息采集与同步](references/public-information.md)。
+- 同一步还会同步 GitHub Actions 每天上午 10:00（UTC+8）计划采集的公共信息快照，查看 `update.knowledge` 的实际状态、`collected_at` 与 `freshness`。通过 `python3 "<公共目录>/scripts/public_knowledge.py" "主题词" --snapshot "<snapshot_path>"` 查找新公告及变化来源，然后回读官方原文。不要只检索旧知识卡而忽略已同步的新通知。现有客户端仍将超过三小时的快照标为过期；每日采集期间出现此提示不等于程序故障。来源失败或同步失败时如实说明；每日轮询不等于实时。详见 [公共信息采集与同步](references/public-information.md)。
 - **第二步必须加载并调用个人记忆 Skill**：读取返回的 `personal_skill.skill_entry`，按其约定运行 `recall`。复用当前宿主的有效授权，按当前问题召回少量相关偏好、个人知识与个人流程；之后将这些内容与公共依据综合为自然的个性化回答。不要只创建个人 Skill 却在后续回答中不调用它，也不要另外创建前端页面、聊天系统或常驻服务。
 - 首次没有读取授权时，继续能完成的公共回答，并在对话中明确说明拟读取的类别、用途、宿主和期限。若当前 Agent 使用云端模型，必须单独取得“允许召回内容用于当前云端模型推理”的授权；本地存储不等于本地推理，这也不等于允许贡献到共享仓库。不要直接 cat 私有文件绕过个人 Skill 的授权门槛。有效授权内后续自动召回，不重复询问。
 - 用户明确要求“记住／修改／忘记／形成个人流程”时，调用个人 Skill 完成对应操作；未知或推断出的属性不自动固化。记忆、流程和授权始终保留在包外，公共更新不能覆盖。详细调用及贡献流程见 [个人记忆与共享更新](references/personalization.md)。

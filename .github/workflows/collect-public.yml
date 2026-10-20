@@ -1,7 +1,8 @@
 name: Collect public campus information
 on:
   schedule:
-    - cron: '17 * * * *'
+    # Daily at 10:00 UTC+8. Delayed runs are checked again before school access.
+    - cron: '0 2 * * *'
   workflow_dispatch:
     inputs:
       exercise_fallback:
@@ -10,16 +11,32 @@ on:
         default: false
 permissions:
   contents: read
+env:
+  LSNU_ENFORCE_COLLECTION_WINDOW: '1'
 concurrency:
   group: public-campus-information
   cancel-in-progress: false
 jobs:
+  window:
+    name: Check daytime collection window
+    runs-on: ubuntu-22.04
+    timeout-minutes: 3
+    outputs:
+      allowed: ${{ steps.window.outputs.allowed }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check actual start time
+        id: window
+        run: python3 scripts/collection_window.py
   primary:
     name: Collect on Ubuntu
+    needs: window
+    if: ${{ needs.window.outputs.allowed == 'true' }}
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     outputs:
       recover: ${{ steps.health.outputs.recover }}
+      has_snapshot: ${{ steps.health.outputs.has_snapshot }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -29,7 +46,11 @@ jobs:
         with:
           ref: public-knowledge
           path: public-data
+      - name: Recheck time after runner setup
+        id: window
+        run: python scripts/collection_window.py --attempt-folder "$RUNNER_TEMP/attempt"
       - name: Record attempt mode
+        if: ${{ steps.window.outputs.allowed == 'true' }}
         env:
           EXERCISE_FALLBACK: ${{ inputs.exercise_fallback || false }}
         run: |
@@ -41,7 +62,7 @@ jobs:
           (Path(os.environ['RUNNER_TEMP']) / 'attempt/attempt-mode.json').write_text(json.dumps({'mode': mode}) + '\n')
           PY
       - name: Collect official pages
-        if: ${{ !inputs.exercise_fallback }}
+        if: ${{ steps.window.outputs.allowed == 'true' && !inputs.exercise_fallback }}
         run: >-
           python scripts/collect_public.py
           --previous public-data/latest.json
@@ -65,6 +86,8 @@ jobs:
     if: ${{ needs.primary.result == 'success' && needs.primary.outputs.recover == 'true' }}
     runs-on: macos-14
     timeout-minutes: 20
+    outputs:
+      has_snapshot: ${{ steps.health.outputs.has_snapshot }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -74,7 +97,11 @@ jobs:
         with:
           ref: public-knowledge
           path: public-data
+      - name: Recheck time before fallback collection
+        id: window
+        run: python scripts/collection_window.py --attempt-folder "$RUNNER_TEMP/attempt"
       - name: Collect from the same original public snapshot
+        if: ${{ steps.window.outputs.allowed == 'true' }}
         run: >-
           python scripts/collect_public.py
           --previous public-data/latest.json
@@ -82,6 +109,7 @@ jobs:
           --report "$RUNNER_TEMP/attempt/collection-report.json"
           --summary "$GITHUB_STEP_SUMMARY"
       - name: Validate recovery attempt
+        id: health
         run: python scripts/collection_ci.py health --folder "$RUNNER_TEMP/attempt" --runner macos
       - name: Keep recovery evidence
         if: always()
@@ -94,7 +122,7 @@ jobs:
   publish:
     name: Publish verified public snapshot
     needs: [primary, fallback]
-    if: ${{ always() && needs.primary.result == 'success' }}
+    if: ${{ always() && needs.primary.result == 'success' && (needs.primary.outputs.has_snapshot == 'true' || needs.fallback.outputs.has_snapshot == 'true') }}
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     permissions:

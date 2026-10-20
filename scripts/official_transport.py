@@ -14,6 +14,7 @@ import time
 import urllib.request
 
 from campus import official_url
+from collection_window import CollectionWindowClosed, require_collection_window
 
 _CACHE = {}
 _LOCKS = {}
@@ -39,6 +40,9 @@ def resolve_addresses(host, port, family):
         cached = _CACHE.get(key)
         if cached and time.monotonic() - cached[0] < DNS_TTL_SECONDS:
             return cached[1]
+        # Check after the lock wait as well as at the caller: an earlier DNS
+        # query may have held this lock across the daytime cutoff.
+        require_collection_window()
         # Only positive answers are cached. Recovery can retry a DNS failure.
         answers = tuple(dict.fromkeys(socket.getaddrinfo(
             host, port, family, socket.SOCK_STREAM, socket.IPPROTO_TCP
@@ -112,6 +116,7 @@ def connect_official(address, timeout=20, source_address=None):
     host, port = address
     if not official_url(f"http://{host}:{port}/"):
         raise ValueError("连接目标不属于官方来源")
+    require_collection_window()
     # This check covers new connections only. Already-running calls can finish
     # after another thread opens the circuit, so the threshold is not a strict
     # upper bound on concurrent attempts. No request waits inside this lock.
@@ -125,6 +130,7 @@ def connect_official(address, timeout=20, source_address=None):
     for family, label in ((socket.AF_INET, "IPv4"), (socket.AF_INET6, "IPv6")):
         if time.monotonic() >= deadline:
             break
+        require_collection_window()
         try:
             answers = resolve_addresses(host, port, family)
         except OSError as exc:
@@ -135,17 +141,23 @@ def connect_official(address, timeout=20, source_address=None):
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 break
+            require_collection_window()
             sock = None
             try:
                 sock = socket.socket(af, kind, protocol)
                 sock.settimeout(remaining)
                 if source_address:
                     sock.bind(source_address)
+                require_collection_window()
                 sock.connect(endpoint)
                 # The caller's original read/TLS timeout remains in force.
                 sock.settimeout(timeout)
                 _record_connection_success(circuit_key)
                 return sock
+            except CollectionWindowClosed:
+                if sock is not None:
+                    sock.close()
+                raise
             except OSError as exc:
                 if sock is not None:
                     sock.close()

@@ -22,6 +22,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 from campus import ROOT, OfficialRedirect, PageText, official_url
+from collection_window import require_collection_window
 from official_transport import (
     ConnectionAttemptsError, HostCircuitOpen, OfficialHTTPHandler, OfficialHTTPSHandler,
     clear_dns_cache,
@@ -226,11 +227,23 @@ def fetch_page(url):
         time.sleep(1)
 
 
+class CollectionWindowRequest(urllib.request.BaseHandler):
+    # urllib runs this for each request, including redirected requests.
+    handler_order = 100
+
+    def http_request(self, request):
+        require_collection_window()
+        return request
+
+    https_request = http_request
+
+
 def _fetch_page(url):
+    require_collection_window()
     if not official_url(url):
         raise ValueError("只允许明确的乐师官方来源")
     opener = urllib.request.build_opener(
-        urllib.request.ProxyHandler({}), OfficialRedirect(),
+        urllib.request.ProxyHandler({}), CollectionWindowRequest(), OfficialRedirect(),
         OfficialHTTPHandler(), OfficialHTTPSHandler(),
     )
     request = urllib.request.Request(

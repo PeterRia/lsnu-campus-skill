@@ -3,6 +3,7 @@
 # ruff: noqa: E402 -- folder Skill has no separately installed Python package.
 
 import errno
+import os
 import socket
 import ssl
 import sys
@@ -10,12 +11,14 @@ import threading
 import unittest
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import Mock, patch, sentinel
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import official_transport as transport
+import collection_window as window
 
 HOST = "jiaowc.lsnu.edu.cn"
 IPV4 = (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("192.0.2.1", 443))
@@ -34,6 +37,94 @@ class OfficialTransportTests(unittest.TestCase):
 
     def tearDown(self):
         transport.clear_dns_cache()
+
+    def test_night_connection_stops_before_dns_or_socket(self):
+        with (
+            patch.dict(os.environ, {window.ENFORCEMENT_ENV: "1"}),
+            patch.object(window, "current_time", return_value=datetime(2026, 10, 20, 10, tzinfo=timezone.utc)),
+            patch.object(transport.socket, "getaddrinfo") as dns,
+            patch.object(transport.socket, "socket") as tcp,
+        ):
+            with self.assertRaises(window.CollectionWindowClosed):
+                transport.connect_official((HOST, 443))
+        dns.assert_not_called()
+        tcp.assert_not_called()
+
+    def test_dns_finishing_after_cutoff_never_creates_tcp_socket(self):
+        with (
+            patch.dict(os.environ, {window.ENFORCEMENT_ENV: "1"}),
+            patch.object(window, "current_time", return_value=datetime(2026, 10, 20, 9, 59, 59, tzinfo=timezone.utc)) as clock,
+            patch.object(transport.time, "monotonic", return_value=10),
+            patch.object(transport.socket, "socket") as tcp,
+        ):
+            def slow_dns(*args):
+                clock.return_value = datetime(2026, 10, 20, 10, tzinfo=timezone.utc)
+                return [IPV4]
+
+            with patch.object(transport.socket, "getaddrinfo", side_effect=slow_dns) as dns:
+                with self.assertRaises(window.CollectionWindowClosed):
+                    transport.connect_official((HOST, 443))
+        dns.assert_called_once()
+        tcp.assert_not_called()
+        self.assertEqual(transport._CIRCUITS, {})
+
+    def test_address_retry_after_cutoff_never_opens_second_socket(self):
+        second = (*IPV4[:4], ("192.0.2.2", 443))
+        first_socket = Mock()
+        with (
+            patch.dict(os.environ, {window.ENFORCEMENT_ENV: "1"}),
+            patch.object(window, "current_time", return_value=datetime(2026, 10, 20, 9, 59, 59, tzinfo=timezone.utc)) as clock,
+            patch.object(transport.time, "monotonic", return_value=10),
+            patch.object(transport.socket, "getaddrinfo", return_value=[IPV4, second]),
+            patch.object(transport.socket, "socket", return_value=first_socket) as tcp,
+        ):
+            def failed_first_address(*args):
+                clock.return_value = datetime(2026, 10, 20, 10, tzinfo=timezone.utc)
+                raise ConnectionRefusedError("synthetic address failure")
+
+            first_socket.connect.side_effect = failed_first_address
+            with self.assertRaises(window.CollectionWindowClosed):
+                transport.connect_official((HOST, 443))
+        tcp.assert_called_once()
+        first_socket.connect.assert_called_once_with(IPV4[4])
+        first_socket.close.assert_called_once_with()
+        self.assertEqual(transport._CIRCUITS, {})
+
+    def test_dns_failure_crossing_cutoff_does_not_query_next_family(self):
+        with (
+            patch.dict(os.environ, {window.ENFORCEMENT_ENV: "1"}),
+            patch.object(window, "current_time", return_value=datetime(2026, 10, 20, 9, 59, 59, tzinfo=timezone.utc)) as clock,
+            patch.object(transport.time, "monotonic", return_value=10),
+            patch.object(transport.socket, "socket") as tcp,
+        ):
+            def failed_dns(*args):
+                clock.return_value = datetime(2026, 10, 20, 10, tzinfo=timezone.utc)
+                raise socket.gaierror(socket.EAI_AGAIN, "synthetic DNS failure")
+
+            with patch.object(transport.socket, "getaddrinfo", side_effect=failed_dns) as dns:
+                with self.assertRaises(window.CollectionWindowClosed):
+                    transport.connect_official((HOST, 443))
+        dns.assert_called_once()
+        tcp.assert_not_called()
+
+    def test_socket_setup_crossing_cutoff_closes_socket_without_connecting(self):
+        sock = Mock()
+        with (
+            patch.dict(os.environ, {window.ENFORCEMENT_ENV: "1"}),
+            patch.object(window, "current_time", return_value=datetime(2026, 10, 20, 9, 59, 59, tzinfo=timezone.utc)) as clock,
+            patch.object(transport.time, "monotonic", return_value=10),
+            patch.object(transport.socket, "getaddrinfo", return_value=[IPV4]),
+            patch.object(transport.socket, "socket", return_value=sock),
+        ):
+            def slow_setup(*args):
+                clock.return_value = datetime(2026, 10, 20, 10, tzinfo=timezone.utc)
+
+            sock.settimeout.side_effect = slow_setup
+            with self.assertRaises(window.CollectionWindowClosed):
+                transport.connect_official((HOST, 443))
+        sock.connect.assert_not_called()
+        sock.close.assert_called_once_with()
+        self.assertEqual(transport._CIRCUITS, {})
 
     def test_ipv4_success_never_queries_unused_ipv6(self):
         connected = Mock()
