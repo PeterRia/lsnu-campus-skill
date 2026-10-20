@@ -33,6 +33,115 @@ TRANSPORT_ERRORS = (OSError, IncompleteRead, BadStatusLine)
 COLLECTION_ERRORS = (*TRANSPORT_ERRORS, ValueError, LookupError)
 
 
+class UnusableOfficialPage(ValueError):
+    """No usable visible official page was obtained."""
+
+
+class ShortNoticeWithoutVerifiedAttachment(ValueError):
+    """Short text lacks the structural evidence for an attachment notice."""
+
+
+class OfficialPageChallenge(ValueError):
+    """The visible page is an access challenge rather than a usable notice."""
+
+
+class NoticeStructure(HTMLParser):
+    """Observe news-form structure and attachment descriptions, never attachment bytes."""
+
+    VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
+            "meta", "param", "source", "track", "wbr"}
+
+    def __init__(self):
+        super().__init__()
+        self.stack = []
+        self.article_seen = False
+        self.article_words = []
+        self.header_words = []
+        self.heading_words = []
+        self.attachments = []
+        self.anchor = None
+        self.news_form_seen = False
+        self.form_closed = False
+
+    def in_news_form(self):
+        return any(tag == "form" and attrs.get("name") == "_newscontent_fromname"
+                   for tag, attrs in self.stack)
+
+    def excluded(self):
+        return any(
+            tag in {"script", "style", "noscript", "aside", "nav", "footer", "header"}
+            or re.search(r"(?:^|[\s_-])(?:sidebar|side|menu|footer|navigation)(?:$|[\s_-])",
+                         attrs.get("class", "") + " " + attrs.get("id", ""), re.I)
+            for tag, attrs in self.stack
+        )
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag not in self.VOID:
+            self.stack.append((tag, attrs))
+        if not self.in_news_form() or self.excluded():
+            return
+        self.news_form_seen = True
+        if tag == "div" and "v_news_content" in attrs.get("class", "").split():
+            self.article_seen = True
+        if tag == "a":
+            self.anchor = {"href": attrs.get("href", ""), "words": []}
+
+    def handle_startendtag(self, tag, attrs):
+        self.handle_starttag(tag, attrs)
+        if tag not in self.VOID:
+            self.handle_endtag(tag)
+
+    def handle_data(self, data):
+        if not self.in_news_form() or self.excluded() or not data.strip():
+            return
+        text = data.strip()
+        if not self.article_seen:
+            self.header_words.append(text)
+        if any(tag == "h1" for tag, _ in self.stack):
+            self.heading_words.append(text)
+        if any(tag == "div" and "v_news_content" in attrs.get("class", "").split()
+               for tag, attrs in self.stack):
+            self.article_words.append(text)
+        if self.anchor is not None:
+            self.anchor["words"].append(text)
+
+    def handle_endtag(self, tag):
+        if tag == "a" and self.anchor is not None:
+            self.attachments.append((self.anchor["href"], " ".join(self.anchor["words"])))
+            self.anchor = None
+        if tag == "form" and self.in_news_form():
+            self.form_closed = True
+        for index in range(len(self.stack) - 1, -1, -1):
+            if self.stack[index][0] == tag:
+                del self.stack[index:]
+                break
+
+    def official_attachments(self, url):
+        origin = urllib.parse.urlsplit(url)
+        found = {}
+        for href, name in self.attachments:
+            absolute = urllib.parse.urljoin(url, href)
+            target = urllib.parse.urlsplit(absolute)
+            query = urllib.parse.parse_qs(target.query, keep_blank_values=True)
+            if (not name.strip() or len(name) > 300 or not official_url(absolute)
+                    or target.netloc != origin.netloc or target.fragment
+                    or target.path != "/system/_content/download.jsp"
+                    or query.get("urltype") != ["news.DownloadAttachUrl"]
+                    or set(query) != {"urltype", "owner", "wbfileid"}
+                    or any(len(query.get(key, [])) != 1
+                           or not re.fullmatch(r"[0-9]+", query[key][0])
+                           for key in ("owner", "wbfileid"))):
+                continue
+            # Ignore query parameter order when computing the observation hash.
+            normalized = urllib.parse.urlunsplit((
+                target.scheme, target.netloc, target.path,
+                urllib.parse.urlencode(sorted((key, values[0]) for key, values in query.items())), "",
+            ))
+            found[normalized] = {"url": normalized, "name": name.strip()}
+        return [found[key] for key in sorted(found)]
+
+
 class Metadata(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -152,19 +261,34 @@ def _fetch_page(url):
 
 
 def parse_page(html, url):
-    page, metadata = PageText(), Metadata()
+    page, metadata, structure = PageText(), Metadata(), NoticeStructure()
     page.feed(html)
     metadata.feed(html)
+    structure.feed(html)
     parsed = page.result()
-    if (
-        not parsed["title"]
-        or len(parsed["text"]) < 30
-        or any(
-            x in parsed["text"]
-            for x in ("请输入验证码下载附件", "人机验证", "Access Denied")
-        )
-    ):
-        raise ValueError("未取得可用官方页面")
+    visible = " ".join(page.all).casefold()
+    if any(x.casefold() in visible for x in (
+        "请输入验证码", "人机验证", "Access Denied", "访问被拒绝", "验证码验证",
+    )):
+        raise OfficialPageChallenge("未取得可用官方页面")
+    if not parsed["title"] or not parsed["text"].strip():
+        raise UnusableOfficialPage("未取得可用官方页面")
+    if structure.news_form_seen and (not structure.article_seen or not structure.article_words):
+        raise UnusableOfficialPage("正式通知缺少可用正文容器")
+    heading = re.sub(r"\s+", "", " ".join(structure.heading_words))
+    title = re.sub(r"\s+", "", parsed["title"])
+    title_matches = bool(heading) and (
+        title == heading or any(title.startswith(heading + mark) for mark in ("-", "—", "_", "|"))
+    )
+    notice_structure = (
+        official_url(url)
+        and re.fullmatch(r"/info/\d+/\d+\.htm", urllib.parse.urlsplit(url).path)
+        and structure.form_closed and structure.article_seen
+        and bool(structure.article_words) and title_matches
+    )
+    attachments = structure.official_attachments(url) if notice_structure else []
+    if len(parsed["text"]) < 30 and not attachments:
+        raise ShortNoticeWithoutVerifiedAttachment("短正文缺少可核验的正式通知附件结构")
     published = metadata.date
     if not published:
         header = " ".join(page.all)
@@ -176,12 +300,25 @@ def parse_page(html, url):
         )
         if match:
             published = "-".join([match[1], match[2].zfill(2), match[3].zfill(2)])
+    if not published and notice_structure:
+        # The site's date is directly above the article; never infer it from
+        # dates in the article or attachment names.
+        match = re.search(r"(?<!\d)(\d{4})年(\d{1,2})月(\d{1,2})日",
+                          " ".join(structure.header_words))
+        if match:
+            published = "-".join([match[1], match[2].zfill(2), match[3].zfill(2)])
     if published:
         datetime.strptime(published, "%Y-%m-%d")
     return {
         "title": parsed["title"][:300],
         "published_on": published,
-        "content_sha256": parsed["content_sha256"],
+        "content_sha256": checksum({
+            "html_content_sha256": parsed["content_sha256"],
+            "attachment_descriptions": attachments,
+        }) if attachments else parsed["content_sha256"],
+        "content_scope": "html_notice_and_attachment_links" if attachments else "html_page",
+        "attachment_count": len(attachments),
+        "attachment_content_checked": False,
         "links": [
             (urllib.parse.urljoin(url, href), text) for href, text in metadata.links
         ],
@@ -291,6 +428,9 @@ def collect(cards, feeds, previous=None, fetch=fetch_page, collected_at=None):
                 {k: page[k] for k in ("title", "published_on", "content_sha256")},
                 last_success_at=at,
                 change=change,
+                content_scope=page.get("content_scope", "html_page"),
+                attachment_count=page.get("attachment_count", 0),
+                attachment_content_checked=False,
             )
         else:
             # An attempted fetch must not refresh a failed source's success time.
@@ -350,6 +490,47 @@ def failed_sources(value):
     ]
 
 
+def recheck_retained_errors(value, fetch, limit=2):
+    """Retry a bounded number of old errors, separately from current discovery."""
+    active = set(value["active_item_urls"])
+    candidates = sorted(
+        (row for row in value["items"] if row["status"] == "error" and row["url"] not in active),
+        key=lambda row: (row["checked_at"], row["url"]),
+    )[:limit]
+    if not candidates:
+        return value, []
+    rows = {row["url"]: dict(row) for row in value["items"]}
+    checks = []
+    for old in candidates:
+        row = rows[old["url"]]
+        row["checked_at"] = value["collected_at"]
+        try:
+            page = fetch(old["url"])
+        except COLLECTION_ERRORS as exc:
+            row.update(status="error", error=error_code(exc), change="not_verified")
+        else:
+            changed = any(old.get(key) != page[key] for key in ("title", "published_on", "content_sha256"))
+            row.update(
+                {key: page[key] for key in ("title", "published_on", "content_sha256")},
+                status="ok", error=None, last_success_at=value["collected_at"],
+                change="changed" if changed else "unchanged",
+                content_scope=page.get("content_scope", "html_page"),
+                attachment_count=page.get("attachment_count", 0),
+                attachment_content_checked=False,
+            )
+        checks.append({
+            "url": row["url"], "status": row["status"], "error": row["error"],
+            "previous_checked_at": old["checked_at"], "checked_at": row["checked_at"],
+            "last_success_at": row.get("last_success_at"),
+        })
+    items = [rows[row["url"]] for row in value["items"]]
+    revision = checksum([
+        {key: row.get(key) for key in ("url", "title", "published_on", "content_sha256")}
+        for row in items
+    ])
+    return validate(seal({**value, "items": items, "content_revision": revision})), checks
+
+
 def collect_with_recovery(
     cards,
     feeds,
@@ -398,6 +579,7 @@ def collect_with_recovery(
                 if row["status"] == "ok":
                     row["last_success_at"] = row["checked_at"]
         value = validate(seal(value))
+    value, retained_checks = recheck_retained_errors(value, cached_fetch)
     remaining = failed_sources(value)
     report = {
         "collected_at": value["collected_at"],
@@ -410,6 +592,7 @@ def collect_with_recovery(
         "retried_urls": sorted(retry_urls & cache.keys()),
         "initial_failures": failures,
         "remaining_failures": remaining,
+        "retained_rechecks": retained_checks,
         "recovered_urls": sorted(
             url
             for url in retry_urls
@@ -420,6 +603,7 @@ def collect_with_recovery(
         "retryable_failed_urls": sorted(
             url for url, (_, exc, _) in cache.items()
             if exc is not None and transient_error(exc)
+            and url in {*value["active_item_urls"], *(row["url"] for row in value["feeds"])}
         ),
         "previous_snapshot_sha256": previous.get("snapshot_sha256") if previous else None,
     }
@@ -437,6 +621,8 @@ def write_job_summary(report, path):
         "",
         f"Collection rounds: {report['collection_rounds']}; "
         f"recovered URLs: {len(report['recovered_urls'])}.",
+        f"Historical rechecks: {len(report.get('retained_rechecks', []))}; "
+        f"recovered: {sum(row['status'] == 'ok' for row in report.get('retained_rechecks', []))}.",
         "",
     ]
     for title, key in (

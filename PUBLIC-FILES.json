@@ -65,10 +65,12 @@
   "scripts/public_knowledge.py",
   "scripts/public_update.py",
   "scripts/share.py",
+  "tests/test_attachment_notices.py",
   "tests/test_collection_ci.py",
   "tests/test_companion.py",
   "tests/test_official_transport.py",
   "tests/test_public_information.py",
   "tests/test_public_transport.py",
+  "tests/test_retained_rechecks.py",
   "tests/test_tools.py"
 ]

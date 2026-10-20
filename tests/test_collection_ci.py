@@ -170,7 +170,7 @@ class CollectionCITests(unittest.TestCase):
             self.select_via_cli(primary, fallback)
         self.assertFalse((self.root / "selected.json").exists())
 
-    def test_retained_historical_error_is_outside_current_attempt_statistics(self):
+    def test_retained_historical_recovery_is_outside_current_attempt_statistics(self):
         def old_failure(url):
             if url == NOTICE_A:
                 raise TimeoutError("synthetic old outage")
@@ -186,8 +186,9 @@ class CollectionCITests(unittest.TestCase):
         self.assertEqual(report["attempted"], 1)
         self.assertEqual(report["failed"], 0)
         retained = next(item for item in value["items"] if item["url"] == NOTICE_A)
-        self.assertEqual(retained["status"], "error")
-        self.assertEqual(retained["last_success_at"], FIRST)
+        self.assertEqual(retained["status"], "ok")
+        self.assertEqual(retained["last_success_at"], THIRD)
+        self.assertEqual(report["retained_rechecks"][0]["url"], NOTICE_A)
 
     def test_healthy_fallback_is_selected_with_its_actual_source_times(self):
         def primary_failure(url):
